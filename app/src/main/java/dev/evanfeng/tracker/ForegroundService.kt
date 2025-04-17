@@ -20,9 +20,9 @@ class ForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val notification: Notification = NotificationCompat.Builder(this, channelId)
-            .setContentTitle("My Service")
-            .setContentText("Running in the foreground")
-//            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("Tracker")
+            .setContentText("Tracking!")
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
             .build()
 
         startForeground(1, notification)
