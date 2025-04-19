@@ -10,13 +10,12 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.clickable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -24,14 +23,13 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
@@ -40,9 +38,8 @@ import androidx.core.content.ContextCompat
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
-import dev.evanfeng.tracker.ui.theme.TrackerTheme
-import androidx.compose.runtime.getValue
 import androidx.lifecycle.lifecycleScope
+import dev.evanfeng.tracker.ui.theme.TrackerTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -121,7 +118,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun SettingsPanel() {
     val mainActivity = LocalContext.current as? MainActivity
-    val toggleState = remember { mutableStateOf(false) }
     val context = LocalContext.current
     Scaffold(
     ) { innerPadding ->
@@ -129,14 +125,17 @@ fun SettingsPanel() {
             Text(text = "Tracker", style = MaterialTheme.typography.headlineMedium)
             Spacer(modifier = Modifier.height(16.dp))
             SettingItem(
-                title = "Setting 1",
-                description = "This is the description for setting 1."
+                title = "Session/Name",
+                description = "Name to report.",
+                key = PreferencesManager.Keys.NAME,
+                default = "",
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            SettingToggleItem(
-                title = "Toggle Setting",
-                description = "Description for the toggle setting.",
-                toggleState = toggleState
+            Spacer(modifier = Modifier.height(16.dp))
+            SettingItem(
+                title = "CF Access Token",
+                description = "Authentication token.",
+                key = PreferencesManager.Keys.TOKEN,
+                default = "",
             )
             Spacer(modifier = Modifier.height(16.dp))
             Button(
@@ -170,11 +169,11 @@ fun SettingsPanel() {
 }
 
 @Composable
-fun SettingItem(title: String, description: String) {
+fun SettingItem(title: String, description: String, key: Preferences.Key<String>, default: String) {
     val context = LocalContext.current
     val preferencesManager = remember { PreferencesManager(context.dataStore) }
-    val name by preferencesManager.nameFlow.collectAsState(initial = "")
-    val textState = remember(name) { mutableStateOf(name ?: "") }
+    val value by preferencesManager.getPreferenceFlow(key, default).collectAsState(initial = default)
+    val textState = remember(value) { mutableStateOf(value) }
     val showDialog = remember { mutableStateOf(false) }
     
     Card(
@@ -189,7 +188,7 @@ fun SettingItem(title: String, description: String) {
             Text(text = description, style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = if (textState.value.isEmpty()) "Tap to enter input" else textState.value,
+                text = textState.value.ifEmpty { "Tap to enter input" },
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -217,7 +216,7 @@ fun SettingItem(title: String, description: String) {
                     showDialog.value = false
                     textState.value = temp.value
                     CoroutineScope(Dispatchers.IO).launch {
-                        preferencesManager.saveName(textState.value)
+                        preferencesManager.savePreference(key, textState.value)
                     }
                 }) {
                     Text("OK")
@@ -229,32 +228,6 @@ fun SettingItem(title: String, description: String) {
                 }
             }
         )
-    }
-}
-
-@Composable
-fun SettingToggleItem(title: String, description: String, toggleState: androidx.compose.runtime.MutableState<Boolean>) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, style = MaterialTheme.typography.titleMedium)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(text = description, style = MaterialTheme.typography.bodyMedium)
-            }
-            Switch(
-                checked = toggleState.value,
-                onCheckedChange = { toggleState.value = it }
-            )
-        }
     }
 }
 
