@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -27,6 +28,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -35,9 +37,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.preferencesDataStore
 import dev.evanfeng.tracker.ui.theme.TrackerTheme
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
-// New helper for compatibility
+val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+
 fun Context.startCompatibleForegroundService(intent: Intent) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
          ContextCompat.startForegroundService(this, intent)
@@ -48,10 +59,10 @@ fun Context.startCompatibleForegroundService(intent: Intent) {
 
 class MainActivity : ComponentActivity() {
 
-    // New field to store the pending action after permissions are granted
+    private val preferencesManager by lazy { PreferencesManager(dataStore) }
+
     private var pendingAction: (() -> Unit)? = null
 
-    // Updated permissionLauncher: now calls pendingAction if all permissions are granted
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions: Map<String, Boolean> ->
@@ -71,6 +82,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             TrackerTheme {
                 SettingsPanel()
+            }
+        }
+
+        lifecycleScope.launch {
+            preferencesManager.nameFlow.collect { name ->
+                Log.d("DataStore", "Name: $name")
             }
         }
     }
@@ -105,7 +122,6 @@ class MainActivity : ComponentActivity() {
 fun SettingsPanel() {
     val mainActivity = LocalContext.current as? MainActivity
     val toggleState = remember { mutableStateOf(false) }
-    // Add context for Toast usage
     val context = LocalContext.current
     Scaffold(
     ) { innerPadding ->
@@ -116,12 +132,6 @@ fun SettingsPanel() {
                 title = "Setting 1",
                 description = "This is the description for setting 1."
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            SettingItem(
-                title = "Setting 2",
-                description = "Description for setting 2 goes here."
-            )
-            // Insert new toggle setting with description area
             Spacer(modifier = Modifier.height(8.dp))
             SettingToggleItem(
                 title = "Toggle Setting",
@@ -146,7 +156,6 @@ fun SettingsPanel() {
             ) {
                 Text("Stop Service")
             }
-            // Insert dummy save settings button
             Spacer(modifier = Modifier.height(8.dp))
             Button(
                 onClick = { 
@@ -162,7 +171,10 @@ fun SettingsPanel() {
 
 @Composable
 fun SettingItem(title: String, description: String) {
-    val textState = remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val preferencesManager = remember { PreferencesManager(context.dataStore) }
+    val name by preferencesManager.nameFlow.collectAsState(initial = "")
+    val textState = remember(name) { mutableStateOf(name ?: "") }
     val showDialog = remember { mutableStateOf(false) }
     
     Card(
@@ -176,7 +188,6 @@ fun SettingItem(title: String, description: String) {
             Spacer(modifier = Modifier.height(4.dp))
             Text(text = description, style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(8.dp))
-            // Display current input or a hint
             Text(
                 text = if (textState.value.isEmpty()) "Tap to enter input" else textState.value,
                 style = MaterialTheme.typography.bodyMedium,
@@ -186,21 +197,29 @@ fun SettingItem(title: String, description: String) {
     }
     
     if (showDialog.value) {
+        val temp = remember { mutableStateOf(textState.value) }
         AlertDialog(
             onDismissRequest = { showDialog.value = false },
             title = { Text("Enter Value") },
             text = {
                 Column {
                     OutlinedTextField(
-                        value = textState.value,
-                        onValueChange = { textState.value = it },
+                        value = temp.value,
+                        onValueChange = { temp.value = it },
                         label = { Text("Input") },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
                     )
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showDialog.value = false }) {
+                TextButton(onClick = {
+                    showDialog.value = false
+                    textState.value = temp.value
+                    CoroutineScope(Dispatchers.IO).launch {
+                        preferencesManager.saveName(textState.value)
+                    }
+                }) {
                     Text("OK")
                 }
             },
