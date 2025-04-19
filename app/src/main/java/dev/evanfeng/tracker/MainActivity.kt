@@ -43,8 +43,19 @@ import dev.evanfeng.tracker.ui.theme.TrackerTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import android.app.ActivityManager
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+
+fun isForegroundServiceRunning(context: Context, serviceClass: Class<*>): Boolean {
+    val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+    for (service in activityManager.getRunningServices(Int.MAX_VALUE)) {
+        if (serviceClass.name == service.service.className) {
+            return true
+        }
+    }
+    return false
+}
 
 fun Context.startCompatibleForegroundService(intent: Intent) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -81,11 +92,8 @@ class MainActivity : ComponentActivity() {
                 SettingsPanel()
             }
         }
-
         lifecycleScope.launch {
-            preferencesManager.nameFlow.collect { name ->
-                Log.d("DataStore", "Name: $name")
-            }
+            preferencesManager.initializeDefaultPreferences()
         }
     }
 
@@ -119,57 +127,48 @@ class MainActivity : ComponentActivity() {
 fun SettingsPanel() {
     val mainActivity = LocalContext.current as? MainActivity
     val context = LocalContext.current
+    val isRunning = remember { mutableStateOf(isForegroundServiceRunning(context, ForegroundService::class.java)) }
     Scaffold(
     ) { innerPadding ->
-        Column(modifier = Modifier.padding(innerPadding).padding(16.dp)) {
+        Column(modifier = Modifier
+            .padding(innerPadding)
+            .padding(16.dp)) {
             Text(text = "Tracker", style = MaterialTheme.typography.headlineMedium)
             Spacer(modifier = Modifier.height(16.dp))
             SettingItem(
+                title = "Server",
+                key = PreferencesManager.Keys.ENDPOINT,
+                default = "",
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            SettingItem(
                 title = "Session/Name",
-                description = "Name to report.",
                 key = PreferencesManager.Keys.NAME,
                 default = "",
             )
             Spacer(modifier = Modifier.height(16.dp))
             SettingItem(
                 title = "CF Access Token",
-                description = "Authentication token.",
                 key = PreferencesManager.Keys.TOKEN,
                 default = "",
             )
             Spacer(modifier = Modifier.height(16.dp))
             Button(
-                onClick = { 
-                    mainActivity?.handleStartServiceButton()
+                onClick = {
+                    mainActivity?.let {
+                        if (isRunning.value) {it.handleStopServiceButton(); isRunning.value = false;} else {it.handleStartServiceButton(); isRunning.value = true;}
+                    }
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Start Service")
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = { 
-                    mainActivity?.handleStopServiceButton()
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Stop Service")
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = { 
-                    Toast.makeText(context, "Settings saved", Toast.LENGTH_SHORT).show()
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Save Settings")
+                Text(if (isRunning.value) "Stop Service" else "Start Service")
             }
         }
     }
 }
 
 @Composable
-fun SettingItem(title: String, description: String, key: Preferences.Key<String>, default: String) {
+fun SettingItem(title: String, description: String? = null, key: Preferences.Key<String>, default: String) {
     val context = LocalContext.current
     val preferencesManager = remember { PreferencesManager(context.dataStore) }
     val value by preferencesManager.getPreferenceFlow(key, default).collectAsState(initial = default)
@@ -185,8 +184,11 @@ fun SettingItem(title: String, description: String, key: Preferences.Key<String>
         Column(modifier = Modifier.padding(16.dp)) {
             Text(text = title, style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(text = description, style = MaterialTheme.typography.bodyMedium)
-            Spacer(modifier = Modifier.height(8.dp))
+            // Only show description if provided and not blank
+            if (!description.isNullOrBlank()) {
+                Text(text = description, style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
             Text(
                 text = textState.value.ifEmpty { "Tap to enter input" },
                 style = MaterialTheme.typography.bodyMedium,

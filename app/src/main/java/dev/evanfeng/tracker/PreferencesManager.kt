@@ -1,10 +1,15 @@
 package dev.evanfeng.tracker
 
+import android.os.Build
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.Preferences.Key
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 class PreferencesManager(private val dataStore: DataStore<Preferences>) {
@@ -31,15 +36,23 @@ class PreferencesManager(private val dataStore: DataStore<Preferences>) {
         }
     }
 
-    val nameFlow: Flow<String> = getPreferenceFlow(Keys.NAME, "")
-    val intervalFlow: Flow<Int> = getPreferenceFlow(Keys.INTERVAL, 0)
-
-    suspend fun saveName(name: String) = savePreference(Keys.NAME, name)
-    suspend fun saveInterval(interval: Int) = savePreference(Keys.INTERVAL, interval)
-
     object Keys {
-        val NAME = androidx.datastore.preferences.core.stringPreferencesKey("name")
-        val INTERVAL = androidx.datastore.preferences.core.intPreferencesKey("interval")
-        val TOKEN = androidx.datastore.preferences.core.stringPreferencesKey("token")
+        val NAME = stringPreferencesKey("name")
+        val ENDPOINT = stringPreferencesKey("endpoint")
+        val INTERVAL = intPreferencesKey("interval")
+        val TOKEN = stringPreferencesKey("token")
+        val IS_FIRST_LAUNCH = booleanPreferencesKey("is_first_launch")
+    }
+
+    suspend fun initializeDefaultPreferences() {
+        savePreference(Keys.IS_FIRST_LAUNCH, true)
+
+        val isFirstLaunch = getPreferenceFlow(Keys.IS_FIRST_LAUNCH, true).first()
+        if (isFirstLaunch) {
+            savePreference(Keys.NAME, Build.MODEL)
+            savePreference(Keys.INTERVAL, 60)
+            savePreference(Keys.TOKEN, "")
+            savePreference(Keys.IS_FIRST_LAUNCH, false)
+        }
     }
 }
