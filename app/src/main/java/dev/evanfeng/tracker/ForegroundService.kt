@@ -119,28 +119,3 @@ class ForegroundService : Service() {
         }
     }
 }
-
-// helper function to make a suspend function for JsonObjectRequest
-suspend fun RequestQueue.suspendJsonObjectRequest(
-    method: Int,
-    url: String,
-    jsonRequest: JSONObject? = null
-): JSONObject = suspendCancellableCoroutine { continuation ->
-    val request = JsonObjectRequest(
-        method,
-        url,
-        jsonRequest,
-        { response ->
-            continuation.resume(response)
-        },
-        { error ->
-            continuation.resumeWithException(error)
-        }
-    )
-
-    this.add(request)
-
-    continuation.invokeOnCancellation {
-        request.cancel()
-    }
-}
