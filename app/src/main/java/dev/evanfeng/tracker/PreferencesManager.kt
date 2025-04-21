@@ -40,7 +40,8 @@ class PreferencesManager(private val dataStore: DataStore<Preferences>) {
         val NAME = stringPreferencesKey("name")
         val ENDPOINT = stringPreferencesKey("endpoint")
         val INTERVAL = intPreferencesKey("interval")
-        val TOKEN = stringPreferencesKey("token")
+        val CF_ACCESS_CLIENT_SECRET = stringPreferencesKey("cf_access_client_secret")
+        val CF_ACCESS_CLIENT_ID = stringPreferencesKey("cf_access_client_id")
         val IS_FIRST_LAUNCH = booleanPreferencesKey("is_first_launch")
     }
 
@@ -51,7 +52,9 @@ class PreferencesManager(private val dataStore: DataStore<Preferences>) {
         if (isFirstLaunch) {
             savePreference(Keys.NAME, Build.MODEL)
             savePreference(Keys.INTERVAL, 60)
-            savePreference(Keys.TOKEN, "")
+            savePreference(Keys.ENDPOINT, "")
+            savePreference(Keys.CF_ACCESS_CLIENT_SECRET, "")
+            savePreference(Keys.CF_ACCESS_CLIENT_ID, "")
             savePreference(Keys.IS_FIRST_LAUNCH, false)
         }
     }

@@ -1,11 +1,11 @@
 package dev.evanfeng.tracker
 
 import android.Manifest
+import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -43,7 +43,6 @@ import dev.evanfeng.tracker.ui.theme.TrackerTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import android.app.ActivityManager
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
@@ -112,6 +111,7 @@ class MainActivity : ComponentActivity() {
     fun handleStartServiceButton() {
          checkPermissionsAndThen {
              val intent = Intent(this, ForegroundService::class.java)
+             ForegroundService.preferencesManager = preferencesManager
              startCompatibleForegroundService(intent)
          }
     }
@@ -136,7 +136,7 @@ fun SettingsPanel() {
             Text(text = "Tracker", style = MaterialTheme.typography.headlineMedium)
             Spacer(modifier = Modifier.height(16.dp))
             SettingItem(
-                title = "Server",
+                title = "Endpoint",
                 key = PreferencesManager.Keys.ENDPOINT,
                 default = "",
             )
@@ -148,8 +148,14 @@ fun SettingsPanel() {
             )
             Spacer(modifier = Modifier.height(16.dp))
             SettingItem(
-                title = "CF Access Token",
-                key = PreferencesManager.Keys.TOKEN,
+                title = "CF Access Client ID",
+                key = PreferencesManager.Keys.CF_ACCESS_CLIENT_ID,
+                default = "",
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            SettingItem(
+                title = "CF Access Client Secret",
+                key = PreferencesManager.Keys.CF_ACCESS_CLIENT_SECRET,
                 default = "",
             )
             Spacer(modifier = Modifier.height(16.dp))
@@ -184,7 +190,6 @@ fun SettingItem(title: String, description: String? = null, key: Preferences.Key
         Column(modifier = Modifier.padding(16.dp)) {
             Text(text = title, style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(4.dp))
-            // Only show description if provided and not blank
             if (!description.isNullOrBlank()) {
                 Text(text = description, style = MaterialTheme.typography.bodyMedium)
                 Spacer(modifier = Modifier.height(8.dp))
