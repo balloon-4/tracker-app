@@ -46,8 +46,6 @@ class PreferencesManager(private val dataStore: DataStore<Preferences>) {
     }
 
     suspend fun initializeDefaultPreferences() {
-        savePreference(Keys.IS_FIRST_LAUNCH, true)
-
         val isFirstLaunch = getPreferenceFlow(Keys.IS_FIRST_LAUNCH, true).first()
         if (isFirstLaunch) {
             savePreference(Keys.NAME, Build.MODEL)
