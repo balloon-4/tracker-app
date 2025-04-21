@@ -226,7 +226,7 @@ fun SettingItem(title: String, description: String? = null, key: Preferences.Key
                         preferencesManager.savePreference(key, textState.value)
                     }
                 }) {
-                    Text("OK")
+                    Text("Ok")
                 }
             },
             dismissButton = {
