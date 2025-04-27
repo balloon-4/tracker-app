@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -32,6 +33,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -159,6 +161,12 @@ fun SettingsPanel() {
                 default = "",
             )
             Spacer(modifier = Modifier.height(16.dp))
+            SettingItemInt(
+                title = "Interval (seconds)",
+                key = PreferencesManager.Keys.INTERVAL,
+                default = 60
+            )
+            Spacer(modifier = Modifier.height(16.dp))
             Button(
                 onClick = {
                     mainActivity?.let {
@@ -238,6 +246,72 @@ fun SettingItem(title: String, description: String? = null, key: Preferences.Key
     }
 }
 
+@Composable
+fun SettingItemInt(title: String, key: Preferences.Key<Int>, default: Int) {
+    val context = LocalContext.current
+    val preferencesManager = remember { PreferencesManager(context.dataStore) }
+    val value by preferencesManager.getPreferenceFlow(key, default).collectAsState(initial = default)
+    val textState = remember(value) { mutableStateOf(value.toString()) }
+    val showDialog = remember { mutableStateOf(false) }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { showDialog.value = true },
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(text = title, style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = textState.value,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+    
+    if (showDialog.value) {
+        val temp = remember { mutableStateOf(textState.value) }
+        AlertDialog(
+            onDismissRequest = { showDialog.value = false },
+            title = { Text("Enter Value") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = temp.value,
+                        onValueChange = { temp.value = it },
+                        label = { Text("Input") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDialog.value = false
+                    val newValue = try {
+                        temp.value.toInt()
+                    } catch (e: Exception) {
+                        default
+                    }
+                    textState.value = newValue.toString()
+                    CoroutineScope(Dispatchers.IO).launch {
+                        preferencesManager.savePreference(key, newValue)
+                    }
+                }) {
+                    Text("Ok")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDialog.value = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
 @Preview(showBackground = true)
 @Composable
 fun SettingsPanelPreview() {
@@ -245,3 +319,4 @@ fun SettingsPanelPreview() {
         SettingsPanel()
     }
 }
+

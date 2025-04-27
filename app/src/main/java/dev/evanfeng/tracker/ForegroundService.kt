@@ -35,6 +35,7 @@ import java.util.TimeZone
 import kotlin.coroutines.resume
 import kotlin.math.abs
 
+@Suppress("OVERRIDE_DEPRECATION")
 class ForegroundService : Service() {
 
     private val channelId = "ForegroundServiceChannel"
