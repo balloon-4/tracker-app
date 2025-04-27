@@ -72,7 +72,9 @@ class ForegroundService : Service() {
                 val cfAccessClientSecret = preferencesManager!!.getPreferenceFlow(PreferencesManager.Keys.CF_ACCESS_CLIENT_SECRET, "").first()
                 val cfAccessClientId = preferencesManager!!.getPreferenceFlow(PreferencesManager.Keys.CF_ACCESS_CLIENT_ID, "").first()
 
+                val startFixTime = System.currentTimeMillis()
                 val freshLocation = getFreshLocation()
+                val fixTime = System.currentTimeMillis() - startFixTime
 
                 val jsonRequest = JSONObject().apply {
                     put("accuracy", freshLocation?.accuracy ?: JSONObject.NULL)
@@ -87,7 +89,7 @@ class ForegroundService : Service() {
                     put("session", name)
                     put("speed", freshLocation?.speed ?: JSONObject.NULL)
                     put("temperature", getBatteryTemperature())
-                    put("timeToFix", JSONObject.NULL)
+                    put("timeToFix", fixTime)
                 }
 
                 Log.d("ForegroundService", "JSON Request: $jsonRequest")
