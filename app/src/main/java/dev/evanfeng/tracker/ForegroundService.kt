@@ -78,8 +78,7 @@ class ForegroundService : Service() {
 
                 val startFixTime = System.currentTimeMillis()
                 val freshLocation = getFreshLocation()
-                val fixTime = System.currentTimeMillis() - startFixTime
-                val pressureValue = getPressure()
+                val calculatedFixTime = if (freshLocation?.provider == LocationManager.GPS_PROVIDER) System.currentTimeMillis() - startFixTime else null
 
                 val jsonRequest = JSONObject().apply {
                     put("accuracy", freshLocation?.accuracy ?: JSONObject.NULL)
@@ -89,12 +88,12 @@ class ForegroundService : Service() {
                     put("date", getCurrentTimeAsISO8601())
                     put("latitude", freshLocation?.latitude ?: JSONObject.NULL)
                     put("longitude", freshLocation?.longitude ?: JSONObject.NULL)
-                    put("pressure", pressureValue ?: JSONObject.NULL)
+                    put("pressure", getPressure() ?: JSONObject.NULL)
                     put("provider", freshLocation?.provider ?: JSONObject.NULL)
                     put("session", name)
                     put("speed", freshLocation?.speed ?: JSONObject.NULL)
                     put("temperature", getBatteryTemperature())
-                    put("timeToFix", fixTime / 1000.0)
+                    put("timeToFix", if (calculatedFixTime == null) JSONObject.NULL else calculatedFixTime / 1000.0)
                 }
 
                 Log.d("ForegroundService", "JSON Request: $jsonRequest")
@@ -160,10 +159,9 @@ class ForegroundService : Service() {
         }
     }
 
-    private suspend fun getFreshLocation(): Location? {
+    private suspend fun requestLocationByProvider(locationManager: LocationManager, provider: String): Location? {
         return withTimeoutOrNull(LOCATION_TIMEOUT_MS) {
-            suspendCancellableCoroutine { cont ->
-                val locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            suspendCancellableCoroutine<Location?> { cont ->
                 var lastAccuracy: Float? = null
                 val listener = object : LocationListener {
                     override fun onLocationChanged(location: Location) {
@@ -182,7 +180,7 @@ class ForegroundService : Service() {
                 }
                 try {
                     locationManager.requestLocationUpdates(
-                        LocationManager.GPS_PROVIDER,
+                        provider,
                         LOCATION_MIN_TIME_MS,
                         LOCATION_MIN_DISTANCE,
                         listener,
@@ -196,6 +194,23 @@ class ForegroundService : Service() {
                 }
             }
         }
+    }
+
+    private suspend fun getFreshLocation(): Location? {
+        val locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        // try gps
+        val gpsLocation = requestLocationByProvider(locationManager, LocationManager.GPS_PROVIDER)
+        if (gpsLocation != null) return gpsLocation
+        // else try network
+        val networkLocation = requestLocationByProvider(locationManager, LocationManager.NETWORK_PROVIDER)
+        if (networkLocation != null) return networkLocation
+        // else if <= android 12 try fused
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val fusedLocation = requestLocationByProvider(locationManager, LocationManager.FUSED_PROVIDER);
+            if (fusedLocation != null) return fusedLocation
+        }
+        // else try passive
+        return requestLocationByProvider(locationManager, LocationManager.PASSIVE_PROVIDER)
     }
 
     private fun getBatteryPercentage(): Int {
