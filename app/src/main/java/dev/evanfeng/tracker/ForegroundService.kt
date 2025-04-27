@@ -6,9 +6,11 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
@@ -27,8 +29,6 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 import java.text.SimpleDateFormat
-import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
@@ -57,7 +57,6 @@ class ForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val notification: Notification = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentText("Tracking")
             .build()
 
         startForeground(NOTIFICATION_ID, notification)
@@ -71,18 +70,13 @@ class ForegroundService : Service() {
                 val interval = preferencesManager!!.getPreferenceFlow(PreferencesManager.Keys.INTERVAL, 60).first()
                 val cfAccessClientSecret = preferencesManager!!.getPreferenceFlow(PreferencesManager.Keys.CF_ACCESS_CLIENT_SECRET, "").first()
                 val cfAccessClientId = preferencesManager!!.getPreferenceFlow(PreferencesManager.Keys.CF_ACCESS_CLIENT_ID, "").first()
-                Log.d("ForegroundService", "Endpoint: $endpoint, Interval: $interval")
-                delay(interval.toLong())
 
                 val freshLocation = getFreshLocation()
-                Log.d("ForegroundService", "Fresh Location: ${freshLocation?.latitude}, ${freshLocation?.longitude}")
-
-                Log.d("ForegroundService", "$name ${getCurrentTimeAsISO8601()} ${freshLocation?.accuracy}")
 
                 val jsonRequest = JSONObject().apply {
                     put("accuracy", freshLocation?.accuracy ?: JSONObject.NULL)
                     put("altitude", freshLocation?.altitude ?: JSONObject.NULL)
-                    put("batteryPercent", JSONObject.NULL)
+                    put("batteryPercent", getBatteryPercentage())
                     put("cellStrength", JSONObject.NULL)
                     put("date", getCurrentTimeAsISO8601())
                     put("latitude", freshLocation?.latitude ?: JSONObject.NULL)
@@ -91,7 +85,7 @@ class ForegroundService : Service() {
                     put("provider", freshLocation?.provider ?: JSONObject.NULL)
                     put("session", name)
                     put("speed", freshLocation?.speed ?: JSONObject.NULL)
-                    put("temperature", JSONObject.NULL)
+                    put("temperature", getBatteryTemperature())
                     put("timeToFix", JSONObject.NULL)
                 }
 
@@ -129,6 +123,8 @@ class ForegroundService : Service() {
                 }
 
                 queue.add(request)
+
+                delay(interval.toLong() * 1000L)
             }
         }
 
@@ -192,6 +188,19 @@ class ForegroundService : Service() {
                 }
             }
         }
+    }
+
+    private fun getBatteryPercentage(): Int {
+        val batteryIntent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val level = batteryIntent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val scale = batteryIntent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+        return if (level >= 0 && scale > 0) (level * 100 / scale) else -1
+    }
+
+    private fun getBatteryTemperature(): Float {
+        val batteryIntent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val temp = batteryIntent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) ?: -1
+        return if (temp != -1) temp / 10.0f else -1f
     }
 
     private fun getCurrentTimeAsISO8601(): String {
