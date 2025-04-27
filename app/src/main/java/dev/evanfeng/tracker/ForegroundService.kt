@@ -7,6 +7,10 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -75,6 +79,7 @@ class ForegroundService : Service() {
                 val startFixTime = System.currentTimeMillis()
                 val freshLocation = getFreshLocation()
                 val fixTime = System.currentTimeMillis() - startFixTime
+                val pressureValue = getPressure()
 
                 val jsonRequest = JSONObject().apply {
                     put("accuracy", freshLocation?.accuracy ?: JSONObject.NULL)
@@ -84,12 +89,12 @@ class ForegroundService : Service() {
                     put("date", getCurrentTimeAsISO8601())
                     put("latitude", freshLocation?.latitude ?: JSONObject.NULL)
                     put("longitude", freshLocation?.longitude ?: JSONObject.NULL)
-                    put("pressure", JSONObject.NULL)
+                    put("pressure", pressureValue ?: JSONObject.NULL)
                     put("provider", freshLocation?.provider ?: JSONObject.NULL)
                     put("session", name)
                     put("speed", freshLocation?.speed ?: JSONObject.NULL)
                     put("temperature", getBatteryTemperature())
-                    put("timeToFix", fixTime)
+                    put("timeToFix", fixTime / 1000.0)
                 }
 
                 Log.d("ForegroundService", "JSON Request: $jsonRequest")
@@ -211,5 +216,27 @@ class ForegroundService : Service() {
         dateFormat.timeZone = TimeZone.getDefault()
         val formattedDate = dateFormat.format(Date())
         return formattedDate.substring(0, formattedDate.length - 2) + ":" + formattedDate.substring(formattedDate.length - 2)
+    }
+
+    private suspend fun getPressure(): Float? {
+        return suspendCancellableCoroutine { cont ->
+            val sensorManager = getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+            val pressureSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_PRESSURE)
+            if (pressureSensor == null) {
+                cont.resume(null)
+                return@suspendCancellableCoroutine
+            }
+            val listener = object : SensorEventListener {
+                override fun onSensorChanged(event: SensorEvent) {
+                    cont.resume(event.values[0])
+                    sensorManager.unregisterListener(this)
+                }
+                override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+            }
+            sensorManager.registerListener(listener, pressureSensor, SensorManager.SENSOR_DELAY_NORMAL)
+            cont.invokeOnCancellation {
+                sensorManager.unregisterListener(listener)
+            }
+        }
     }
 }
