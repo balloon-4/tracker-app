@@ -70,15 +70,27 @@ class ForegroundService : Service() {
 
         serviceJob = CoroutineScope(Dispatchers.Default).launch {
             while (true) {
-                val name = preferencesManager!!.getPreferenceFlow(PreferencesManager.Keys.NAME, "").first()
-                val endpoint = preferencesManager!!.getPreferenceFlow(PreferencesManager.Keys.ENDPOINT, "").first()
-                val interval = preferencesManager!!.getPreferenceFlow(PreferencesManager.Keys.INTERVAL, 60).first()
-                val cfAccessClientSecret = preferencesManager!!.getPreferenceFlow(PreferencesManager.Keys.CF_ACCESS_CLIENT_SECRET, "").first()
-                val cfAccessClientId = preferencesManager!!.getPreferenceFlow(PreferencesManager.Keys.CF_ACCESS_CLIENT_ID, "").first()
+                val name =
+                    preferencesManager!!.getPreferenceFlow(PreferencesManager.Keys.NAME, "").first()
+                val endpoint =
+                    preferencesManager!!.getPreferenceFlow(PreferencesManager.Keys.ENDPOINT, "")
+                        .first()
+                val interval =
+                    preferencesManager!!.getPreferenceFlow(PreferencesManager.Keys.INTERVAL, 60)
+                        .first()
+                val cfAccessClientSecret = preferencesManager!!.getPreferenceFlow(
+                    PreferencesManager.Keys.CF_ACCESS_CLIENT_SECRET,
+                    ""
+                ).first()
+                val cfAccessClientId = preferencesManager!!.getPreferenceFlow(
+                    PreferencesManager.Keys.CF_ACCESS_CLIENT_ID,
+                    ""
+                ).first()
 
                 val startFixTime = System.currentTimeMillis()
                 val freshLocation = getFreshLocation()
-                val calculatedFixTime = if (freshLocation?.provider == LocationManager.GPS_PROVIDER) System.currentTimeMillis() - startFixTime else null
+                val calculatedFixTime =
+                    if (freshLocation?.provider == LocationManager.GPS_PROVIDER) System.currentTimeMillis() - startFixTime else null
 
                 val jsonRequest = JSONObject().apply {
                     put("accuracy", freshLocation?.accuracy ?: JSONObject.NULL)
@@ -93,7 +105,10 @@ class ForegroundService : Service() {
                     put("session", name)
                     put("speed", freshLocation?.speed ?: JSONObject.NULL)
                     put("temperature", getBatteryTemperature())
-                    put("timeToFix", if (calculatedFixTime == null) JSONObject.NULL else calculatedFixTime / 1000.0)
+                    put(
+                        "timeToFix",
+                        if (calculatedFixTime == null) JSONObject.NULL else calculatedFixTime / 1000.0
+                    )
                 }
 
                 Log.d("ForegroundService", "JSON Request: $jsonRequest")
@@ -105,8 +120,10 @@ class ForegroundService : Service() {
                     { response ->
                     },
                     { error ->
-                        Log.e("ForegroundService", "Error sending request: ${error}")
-                        Log.e("ForegroundService", "Error sending request: ${error.networkResponse?.statusCode}")
+                        Log.e(
+                            "ForegroundService",
+                            "Error sending request: $error ${error.networkResponse?.statusCode}"
+                        )
                         error.networkResponse?.data?.let {
                             Log.e("ForegroundService", "Response body: ${String(it)}")
                         }
@@ -159,7 +176,10 @@ class ForegroundService : Service() {
         }
     }
 
-    private suspend fun requestLocationByProvider(locationManager: LocationManager, provider: String): Location? {
+    private suspend fun requestLocationByProvider(
+        locationManager: LocationManager,
+        provider: String
+    ): Location? {
         return withTimeoutOrNull(LOCATION_TIMEOUT_MS) {
             suspendCancellableCoroutine<Location?> { cont ->
                 var lastAccuracy: Float? = null
@@ -174,9 +194,10 @@ class ForegroundService : Service() {
                             lastAccuracy = location.accuracy
                         }
                     }
-                    override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) { }
-                    override fun onProviderEnabled(provider: String) { }
-                    override fun onProviderDisabled(provider: String) { }
+
+                    override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+                    override fun onProviderEnabled(provider: String) {}
+                    override fun onProviderDisabled(provider: String) {}
                 }
                 try {
                     locationManager.requestLocationUpdates(
@@ -201,18 +222,20 @@ class ForegroundService : Service() {
         // try gps
         val gpsLocation = requestLocationByProvider(locationManager, LocationManager.GPS_PROVIDER)
         if (gpsLocation != null) return gpsLocation
-        Log.d("ForegroundService", "GPS location is null, trying network")
         // else try network
-        val networkLocation = requestLocationByProvider(locationManager, LocationManager.NETWORK_PROVIDER)
+        Log.d("ForegroundService", "Trying network")
+        val networkLocation =
+            requestLocationByProvider(locationManager, LocationManager.NETWORK_PROVIDER)
         if (networkLocation != null) return networkLocation
         // else if <= android 12 try fused
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            Log.d("ForegroundService", "Network location is null, Android 12 or higher, trying Fused")
-            val fusedLocation = requestLocationByProvider(locationManager, LocationManager.FUSED_PROVIDER);
+            Log.d("ForegroundService", "Trying Fused")
+            val fusedLocation =
+                requestLocationByProvider(locationManager, LocationManager.FUSED_PROVIDER)
             if (fusedLocation != null) return fusedLocation
         }
-        Log.d("ForegroundService", "Network location is null, Android 12 or higher, Fused location is null, trying passive")
         // else try passive
+        Log.d("ForegroundService", "Trying passive")
         return requestLocationByProvider(locationManager, LocationManager.PASSIVE_PROVIDER)
     }
 
@@ -233,7 +256,9 @@ class ForegroundService : Service() {
         val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ", Locale.getDefault())
         dateFormat.timeZone = TimeZone.getDefault()
         val formattedDate = dateFormat.format(Date())
-        return formattedDate.substring(0, formattedDate.length - 2) + ":" + formattedDate.substring(formattedDate.length - 2)
+        return formattedDate.substring(0, formattedDate.length - 2) + ":" + formattedDate.substring(
+            formattedDate.length - 2
+        )
     }
 
     private suspend fun getPressure(): Float? {
@@ -249,9 +274,14 @@ class ForegroundService : Service() {
                     cont.resume(event.values[0])
                     sensorManager.unregisterListener(this)
                 }
+
                 override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
             }
-            sensorManager.registerListener(listener, pressureSensor, SensorManager.SENSOR_DELAY_NORMAL)
+            sensorManager.registerListener(
+                listener,
+                pressureSensor,
+                SensorManager.SENSOR_DELAY_NORMAL
+            )
             cont.invokeOnCancellation {
                 sensorManager.unregisterListener(listener)
             }

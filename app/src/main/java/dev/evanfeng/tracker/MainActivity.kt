@@ -11,26 +11,41 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
@@ -60,9 +75,9 @@ fun isForegroundServiceRunning(context: Context, serviceClass: Class<*>): Boolea
 
 fun Context.startCompatibleForegroundService(intent: Intent) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-         ContextCompat.startForegroundService(this, intent)
+        ContextCompat.startForegroundService(this, intent)
     } else {
-         this.startService(intent)
+        this.startService(intent)
     }
 }
 
@@ -82,7 +97,11 @@ class MainActivity : ComponentActivity() {
             pendingAction?.invoke()
             pendingAction = null
         } else {
-            Toast.makeText(this, "Location and notification permissions are required", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                this,
+                "Location and notification permissions are required",
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
@@ -90,7 +109,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             TrackerTheme {
-                SettingsPanel()
+                MainScreen()
             }
         }
         lifecycleScope.launch {
@@ -99,96 +118,137 @@ class MainActivity : ComponentActivity() {
     }
 
     fun checkPermissionsAndThen(action: () -> Unit) {
-         pendingAction = action
-         val permissionsToRequest = mutableListOf(
-             Manifest.permission.ACCESS_FINE_LOCATION,
-             Manifest.permission.ACCESS_COARSE_LOCATION
-         )
-         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-             permissionsToRequest += Manifest.permission.POST_NOTIFICATIONS
-         }
-         permissionLauncher.launch(permissionsToRequest.toTypedArray())
+        pendingAction = action
+        val permissionsToRequest = mutableListOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissionsToRequest += Manifest.permission.POST_NOTIFICATIONS
+        }
+        permissionLauncher.launch(permissionsToRequest.toTypedArray())
     }
 
     fun handleStartServiceButton() {
-         checkPermissionsAndThen {
-             val intent = Intent(this, ForegroundService::class.java)
-             ForegroundService.preferencesManager = preferencesManager
-             startCompatibleForegroundService(intent)
-         }
+        checkPermissionsAndThen {
+            val intent = Intent(this, ForegroundService::class.java)
+            ForegroundService.preferencesManager = preferencesManager
+            startCompatibleForegroundService(intent)
+        }
     }
 
     fun handleStopServiceButton() {
-         checkPermissionsAndThen {
-             stopService(Intent(this, ForegroundService::class.java))
-         }
-    }
-}
-
-@Composable
-fun SettingsPanel() {
-    val mainActivity = LocalContext.current as? MainActivity
-    val context = LocalContext.current
-    val isRunning = remember { mutableStateOf(isForegroundServiceRunning(context, ForegroundService::class.java)) }
-    Scaffold(
-    ) { innerPadding ->
-        Column(modifier = Modifier
-            .padding(innerPadding)
-            .padding(16.dp)) {
-            Text(text = "Tracker", style = MaterialTheme.typography.headlineMedium)
-            Spacer(modifier = Modifier.height(16.dp))
-            SettingItem(
-                title = "Endpoint",
-                key = PreferencesManager.Keys.ENDPOINT,
-                default = "",
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            SettingItem(
-                title = "Session/Name",
-                key = PreferencesManager.Keys.NAME,
-                default = "",
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            SettingItem(
-                title = "CF Access Client ID",
-                key = PreferencesManager.Keys.CF_ACCESS_CLIENT_ID,
-                default = "",
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            SettingItem(
-                title = "CF Access Client Secret",
-                key = PreferencesManager.Keys.CF_ACCESS_CLIENT_SECRET,
-                default = "",
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            SettingItemInt(
-                title = "Interval (seconds)",
-                key = PreferencesManager.Keys.INTERVAL,
-                default = 60
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(
-                onClick = {
-                    mainActivity?.let {
-                        if (isRunning.value) {it.handleStopServiceButton(); isRunning.value = false;} else {it.handleStartServiceButton(); isRunning.value = true;}
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(if (isRunning.value) "Stop Service" else "Start Service")
-            }
+        checkPermissionsAndThen {
+            stopService(Intent(this, ForegroundService::class.java))
         }
     }
 }
 
 @Composable
-fun SettingItem(title: String, description: String? = null, key: Preferences.Key<String>, default: String) {
+fun MainScreen() {
+    val selectedTab = remember { mutableStateOf("settings") }
+    Scaffold(
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = selectedTab.value == "settings",
+                    onClick = { selectedTab.value = "settings" },
+                    icon = { Icon(Icons.Filled.Settings, contentDescription = "Settings") },
+                    label = { Text("Settings") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab.value == "logs",
+                    onClick = { selectedTab.value = "logs" },
+                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Logs") },
+                    label = { Text("Logs") }
+                )
+            }
+        }
+    ) { innerPadding ->
+        if (selectedTab.value == "settings") {
+            SettingsPanel(modifier = Modifier.padding(innerPadding))
+        } else {
+            LogsPanel(modifier = Modifier.padding(innerPadding))
+        }
+    }
+}
+
+@Composable
+fun SettingsPanel(modifier: Modifier = Modifier) {
+    val mainActivity = LocalContext.current as? MainActivity
+    val context = LocalContext.current
+    val isRunning = remember {
+        mutableStateOf(
+            isForegroundServiceRunning(
+                context,
+                ForegroundService::class.java
+            )
+        )
+    }
+    Column(modifier = modifier.then(Modifier.padding(16.dp))) {
+        Text(text = "Settings", style = MaterialTheme.typography.headlineMedium)
+        Spacer(modifier = Modifier.height(16.dp))
+        SettingItem(
+            title = "Endpoint",
+            key = PreferencesManager.Keys.ENDPOINT,
+            default = "",
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        SettingItem(
+            title = "Session/Name",
+            key = PreferencesManager.Keys.NAME,
+            default = "",
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        SettingItem(
+            title = "CF Access Client ID",
+            key = PreferencesManager.Keys.CF_ACCESS_CLIENT_ID,
+            default = "",
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        SettingItem(
+            title = "CF Access Client Secret",
+            key = PreferencesManager.Keys.CF_ACCESS_CLIENT_SECRET,
+            default = "",
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        SettingItemInt(
+            title = "Interval (seconds)",
+            key = PreferencesManager.Keys.INTERVAL,
+            default = 60
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+            onClick = {
+                mainActivity?.let {
+                    if (isRunning.value) {
+                        it.handleStopServiceButton(); isRunning.value = false
+                    } else {
+                        it.handleStartServiceButton(); isRunning.value = true
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(if (isRunning.value) "Stop Service" else "Start Service")
+        }
+    }
+}
+
+@Composable
+fun SettingItem(
+    title: String,
+    description: String? = null,
+    key: Preferences.Key<String>,
+    default: String
+) {
     val context = LocalContext.current
     val preferencesManager = remember { PreferencesManager(context.dataStore) }
-    val value by preferencesManager.getPreferenceFlow(key, default).collectAsState(initial = default)
+    val value by preferencesManager.getPreferenceFlow(key, default)
+        .collectAsState(initial = default)
     val textState = remember(value) { mutableStateOf(value) }
     val showDialog = remember { mutableStateOf(false) }
-    
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -209,7 +269,7 @@ fun SettingItem(title: String, description: String? = null, key: Preferences.Key
             )
         }
     }
-    
+
     if (showDialog.value) {
         val temp = remember { mutableStateOf(textState.value) }
         AlertDialog(
@@ -250,7 +310,8 @@ fun SettingItem(title: String, description: String? = null, key: Preferences.Key
 fun SettingItemInt(title: String, key: Preferences.Key<Int>, default: Int) {
     val context = LocalContext.current
     val preferencesManager = remember { PreferencesManager(context.dataStore) }
-    val value by preferencesManager.getPreferenceFlow(key, default).collectAsState(initial = default)
+    val value by preferencesManager.getPreferenceFlow(key, default)
+        .collectAsState(initial = default)
     val textState = remember(value) { mutableStateOf(value.toString()) }
     val showDialog = remember { mutableStateOf(false) }
     Card(
@@ -269,7 +330,7 @@ fun SettingItemInt(title: String, key: Preferences.Key<Int>, default: Int) {
             )
         }
     }
-    
+
     if (showDialog.value) {
         val temp = remember { mutableStateOf(textState.value) }
         AlertDialog(
@@ -312,6 +373,52 @@ fun SettingItemInt(title: String, key: Preferences.Key<Int>, default: Int) {
     }
 }
 
+@Composable
+fun LogsPanel(modifier: Modifier = Modifier) {
+    val logs = remember { mutableStateListOf<String>() }
+    val listState = rememberLazyListState()
+    val logsReader = remember { LogsReader() }
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        logs.addAll(logsReader.fetchInitialLogs(25))
+        listState.scrollToItem(logs.size - 1)
+        logsReader.startTail()
+        logsReader.logsFlow.collect { newLog ->
+            logs.add(newLog)
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("Logs", style = MaterialTheme.typography.headlineMedium)
+            Button(onClick = {
+                coroutineScope.launch {
+                    val refreshed = logsReader.fetchInitialLogs(25)
+                    logs.clear()
+                    logs.addAll(refreshed)
+                    listState.scrollToItem(logs.size - 1)
+                }
+            }) {
+                Text("Refresh")
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        LazyColumn(state = listState) {
+            items(logs) { log ->
+                Text(text = log, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    }
+}
+
 @Preview(showBackground = true)
 @Composable
 fun SettingsPanelPreview() {
@@ -319,4 +426,3 @@ fun SettingsPanelPreview() {
         SettingsPanel()
     }
 }
-
