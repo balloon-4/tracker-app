@@ -383,10 +383,6 @@ fun LogsPanel(modifier: Modifier = Modifier) {
     LaunchedEffect(Unit) {
         logs.addAll(logsReader.fetchInitialLogs(25))
         listState.scrollToItem(logs.size - 1)
-        logsReader.startTail()
-        logsReader.logsFlow.collect { newLog ->
-            logs.add(newLog)
-        }
     }
 
     Column(

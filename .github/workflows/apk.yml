@@ -11,6 +11,11 @@ on:
       - main
 
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version"
+        required: true
+        type: string
 
 jobs:
   build:
@@ -53,3 +58,19 @@ jobs:
       # Create APK Release
       - name: Build apk release project (APK) - ${{ env.main_project_module }} module
         run: ./gradlew assemble
+
+      # Determine Tag Name
+      - name: Set release tag name
+        id: set_tag_name
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "tag_name=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+          else
+            echo "tag_name=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{}}/build/outputs/apk/*.apk
+          fail_on_unmatched_files: true
+          tag_name: "${{ env.tag_name }}"
