@@ -201,14 +201,17 @@ class ForegroundService : Service() {
         // try gps
         val gpsLocation = requestLocationByProvider(locationManager, LocationManager.GPS_PROVIDER)
         if (gpsLocation != null) return gpsLocation
+        Log.d("ForegroundService", "GPS location is null, trying network")
         // else try network
         val networkLocation = requestLocationByProvider(locationManager, LocationManager.NETWORK_PROVIDER)
         if (networkLocation != null) return networkLocation
         // else if <= android 12 try fused
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            Log.d("ForegroundService", "Network location is null, Android 12 or higher, trying Fused")
             val fusedLocation = requestLocationByProvider(locationManager, LocationManager.FUSED_PROVIDER);
             if (fusedLocation != null) return fusedLocation
         }
+        Log.d("ForegroundService", "Network location is null, Android 12 or higher, Fused location is null, trying passive")
         // else try passive
         return requestLocationByProvider(locationManager, LocationManager.PASSIVE_PROVIDER)
     }
