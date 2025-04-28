@@ -1,4 +1,4 @@
-name: Generate APK
+name: Generated APK AAB (Upload - Create Artifact To Github Action)
 
 env:
   # The name of the main module repository
@@ -8,14 +8,10 @@ on:
 
   push:
     branches:
-      - main
+      - 'main'
 
+  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Version"
-        required: true
-        type: string
 
 jobs:
   build:
@@ -59,18 +55,29 @@ jobs:
       - name: Build apk release project (APK) - ${{ env.main_project_module }} module
         run: ./gradlew assemble
 
-      # Determine Tag Name
-      - name: Set release tag name
-        id: set_tag_name
-        run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "tag_name=${{ github.event.inputs.version }}" >> $GITHUB_ENV
-          else
-            echo "tag_name=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+      # Create Bundle AAB Release
+      # Noted for main module build [main_project_module]:bundleRelease
+      - name: Build app bundle release (AAB) - ${{ env.main_project_module }} module
+        run: ./gradlew ${{ env.main_project_module }}:bundleRelease
 
-      - name: Release
-        uses: softprops/action-gh-release@v2
+      # Upload Artifact Build
+      # Noted For Output [main_project_module]/build/outputs/apk/debug/
+      - name: Upload APK Debug - ${{ env.repository_name }}
+        uses: actions/upload-artifact@v4
         with:
-          files: ${{}}/build/outputs/apk/*.apk
-          fail_on_unmatched_files: true
-          tag_name: "${{ env.tag_name }}"
+          name: ${{ env.date_today }} - ${{ env.repository_name }} - APK(s) debug generated
+          path: ${{ env.main_project_module }}/build/outputs/apk/debug/
+
+      # Noted For Output [main_project_module]/build/outputs/apk/release/
+      - name: Upload APK Release - ${{ env.repository_name }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.date_today }} - ${{ env.repository_name }} - APK(s) release generated
+          path: ${{ env.main_project_module }}/build/outputs/apk/release/
+
+      # Noted For Output [main_project_module]/build/outputs/bundle/release/
+      - name: Upload AAB (App Bundle) Release - ${{ env.repository_name }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.date_today }} - ${{ env.repository_name }} - App bundle(s) AAB release generated
+          path: ${{ env.main_project_module }}/build/outputs/bundle/release/
