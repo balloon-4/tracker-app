@@ -22,7 +22,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Settings
@@ -185,7 +187,13 @@ fun SettingsPanel(modifier: Modifier = Modifier) {
             )
         )
     }
-    Column(modifier = modifier.then(Modifier.padding(16.dp))) {
+    Column(
+        modifier = modifier.then(
+            Modifier
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState())
+        )
+    ) {
         Text(text = "Settings", style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(16.dp))
         SettingItem(
