@@ -48,6 +48,7 @@ class ForegroundService : Service() {
     companion object {
         var preferencesManager: PreferencesManager? = null
         const val NOTIFICATION_ID = 1
+        const val ERROR_NOTIFICATION_ID = NOTIFICATION_ID + 1
         const val LOCATION_MIN_TIME_MS = 1000L
         const val LOCATION_MIN_DISTANCE = 0f
         const val MIN_ACCURACY_DIFFERENCE = 5f
@@ -127,6 +128,7 @@ class ForegroundService : Service() {
                         error.networkResponse?.data?.let {
                             Log.e("ForegroundService", "Response body: ${String(it)}")
                         }
+                        showErrorNotification("Error code: ${error.networkResponse?.statusCode ?: "Unknown"}")
                     }
                 ) {
                     override fun parseNetworkResponse(response: com.android.volley.NetworkResponse): com.android.volley.Response<JSONObject> {
@@ -174,6 +176,17 @@ class ForegroundService : Service() {
             val manager = getSystemService(NotificationManager::class.java)
             manager?.createNotificationChannel(serviceChannel)
         }
+    }
+
+    private fun showErrorNotification(message: String) {
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val errorNotification = NotificationCompat.Builder(this, channelId)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle("HTTP Request Failed")
+            .setContentText(message)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+        notificationManager.notify(ERROR_NOTIFICATION_ID, errorNotification)
     }
 
     private suspend fun requestLocationByProvider(
@@ -288,3 +301,4 @@ class ForegroundService : Service() {
         }
     }
 }
+
