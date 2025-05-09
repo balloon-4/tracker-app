@@ -43,6 +43,7 @@ class PreferencesManager(private val dataStore: DataStore<Preferences>) {
         val CF_ACCESS_CLIENT_SECRET = stringPreferencesKey("cf_access_client_secret")
         val CF_ACCESS_CLIENT_ID = stringPreferencesKey("cf_access_client_id")
         val IS_FIRST_LAUNCH = booleanPreferencesKey("is_first_launch")
+        val IS_SERVICE_RUNNING = booleanPreferencesKey("is_service_running")
     }
 
     suspend fun initializeDefaultPreferences() {
@@ -54,6 +55,7 @@ class PreferencesManager(private val dataStore: DataStore<Preferences>) {
             savePreference(Keys.CF_ACCESS_CLIENT_SECRET, "")
             savePreference(Keys.CF_ACCESS_CLIENT_ID, "")
             savePreference(Keys.IS_FIRST_LAUNCH, false)
+            savePreference(Keys.IS_SERVICE_RUNNING, false)
         }
     }
 }

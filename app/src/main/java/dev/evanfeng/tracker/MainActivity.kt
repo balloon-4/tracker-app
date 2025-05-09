@@ -94,8 +94,11 @@ class MainActivity : ComponentActivity() {
     ) { permissions: Map<String, Boolean> ->
         val locationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
                 permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        val backgroundGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            permissions[Manifest.permission.ACCESS_BACKGROUND_LOCATION] == true
+        } else true
         val notificationsGranted = permissions[Manifest.permission.POST_NOTIFICATIONS] ?: true
-        if (locationGranted && notificationsGranted) {
+        if (locationGranted && backgroundGranted && notificationsGranted) {
             pendingAction?.invoke()
             pendingAction = null
         } else {
@@ -125,6 +128,9 @@ class MainActivity : ComponentActivity() {
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION
         )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            permissionsToRequest += Manifest.permission.ACCESS_BACKGROUND_LOCATION
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissionsToRequest += Manifest.permission.POST_NOTIFICATIONS
         }
@@ -136,12 +142,18 @@ class MainActivity : ComponentActivity() {
             val intent = Intent(this, ForegroundService::class.java)
             ForegroundService.preferencesManager = preferencesManager
             startCompatibleForegroundService(intent)
+            lifecycleScope.launch(Dispatchers.IO) {
+                preferencesManager.savePreference(PreferencesManager.Keys.IS_SERVICE_RUNNING, true)
+            }
         }
     }
 
     fun handleStopServiceButton() {
         checkPermissionsAndThen {
             stopService(Intent(this, ForegroundService::class.java))
+            lifecycleScope.launch(Dispatchers.IO) {
+                preferencesManager.savePreference(PreferencesManager.Keys.IS_SERVICE_RUNNING, false)
+            }
         }
     }
 }
