@@ -21,6 +21,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.android.volley.toolbox.JsonArrayRequest
 import com.android.volley.toolbox.JsonObjectRequest
 import com.android.volley.toolbox.Volley
 import kotlinx.coroutines.CoroutineScope
@@ -31,6 +32,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
+import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -93,28 +95,43 @@ class ForegroundService : Service() {
                 val calculatedFixTime =
                     if (freshLocation?.provider == LocationManager.GPS_PROVIDER) System.currentTimeMillis() - startFixTime else null
 
-                val jsonRequest = JSONObject().apply {
-                    put("accuracy", freshLocation?.accuracy ?: JSONObject.NULL)
-                    put("altitude", freshLocation?.altitude ?: JSONObject.NULL)
-                    put("batteryPercent", getBatteryPercentage())
-                    put("cellStrength", JSONObject.NULL)
-                    put("date", getCurrentTimeAsISO8601())
-                    put("latitude", freshLocation?.latitude ?: JSONObject.NULL)
-                    put("longitude", freshLocation?.longitude ?: JSONObject.NULL)
-                    put("pressure", getPressure() ?: JSONObject.NULL)
-                    put("provider", freshLocation?.provider ?: JSONObject.NULL)
-                    put("session", name)
-                    put("speed", freshLocation?.speed ?: JSONObject.NULL)
-                    put("temperature", getBatteryTemperature())
-                    put(
-                        "timeToFix",
-                        if (calculatedFixTime == null) JSONObject.NULL else calculatedFixTime / 1000.0
-                    )
+                val jsonRequest = JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("date", getCurrentTimeAsISO8601() ?: JSONObject.NULL)
+                        put("location", JSONObject().apply {
+                            put("latitude", freshLocation?.latitude ?: JSONObject.NULL)
+                            put("longitude", freshLocation?.longitude ?: JSONObject.NULL)
+                            put("speed", freshLocation?.speed ?: JSONObject.NULL)
+                            put("accuracy", freshLocation?.accuracy ?: JSONObject.NULL)
+                            put("altitude", freshLocation?.altitude ?: JSONObject.NULL)
+                            put("provider", freshLocation?.provider ?: JSONObject.NULL)
+                            put("timeToFix", if (calculatedFixTime == null) JSONObject.NULL else calculatedFixTime / 1000.0)
+                            put("bearing", freshLocation?.bearing ?: JSONObject.NULL)
+                        })
+                        put("battery", JSONObject().apply {
+                            put("voltage", JSONObject.NULL)
+                            put("current", JSONObject.NULL)
+                            put("temperature", getBatteryTemperature())
+                            put("level", getBatteryPercentage())
+                            put("charging", JSONObject.NULL)
+                        })
+                        put("sensors", JSONObject().apply {
+                            put("barometer", getPressure() ?: JSONObject.NULL)
+                            put("light", JSONObject.NULL)
+                            put("proximity", JSONObject.NULL)
+                        })
+                        put("cellular", JSONObject().apply {
+                            put("networkType", JSONObject.NULL)
+                            put("signalStrength", JSONObject.NULL)
+                            put("signalPower", JSONObject.NULL)
+                            put("cellTower", JSONObject.NULL)
+                        })
+                    })
                 }
 
                 Log.d("ForegroundService", "JSON Request: $jsonRequest")
 
-                val request = object : JsonObjectRequest(
+                val request = object : JsonArrayRequest(
                     Method.POST,
                     endpoint,
                     jsonRequest,
@@ -131,11 +148,13 @@ class ForegroundService : Service() {
                         showErrorNotification("Error code: ${error.networkResponse?.statusCode ?: "Unknown"}")
                     }
                 ) {
-                    override fun parseNetworkResponse(response: com.android.volley.NetworkResponse): com.android.volley.Response<JSONObject> {
-                        return if (response.statusCode == 204) {
-                            com.android.volley.Response.success(JSONObject(), null)
-                        } else {
-                            super.parseNetworkResponse(response)
+                    override fun parseNetworkResponse(response: com.android.volley.NetworkResponse): com.android.volley.Response<JSONArray> {
+                        return try {
+                            val responseString = String(response.data)
+                            val jsonArray = JSONArray(responseString)
+                            com.android.volley.Response.success(jsonArray, null)
+                        } catch (e: org.json.JSONException) {
+                            com.android.volley.Response.success(JSONArray(), null)
                         }
                     }
 
@@ -301,4 +320,3 @@ class ForegroundService : Service() {
         }
     }
 }
-
