@@ -21,8 +21,8 @@ import android.os.IBinder
 import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.edit
 import com.android.volley.toolbox.JsonArrayRequest
-import com.android.volley.toolbox.JsonObjectRequest
 import com.android.volley.toolbox.Volley
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -55,6 +55,9 @@ class ForegroundService : Service() {
         const val LOCATION_MIN_DISTANCE = 0f
         const val MIN_ACCURACY_DIFFERENCE = 5f
         const val LOCATION_TIMEOUT_MS = 10000L
+        const val MAX_FAILED_REQUESTS = 1000
+        const val PREFS_NAME = "telemetry_prefs"
+        const val KEY_FAILED_REQUESTS = "failed_requests"
     }
 
     override fun onCreate() {
@@ -90,14 +93,22 @@ class ForegroundService : Service() {
                     ""
                 ).first()
 
+                val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val failedJson = prefs.getString(KEY_FAILED_REQUESTS, "[]")!!
+                val failedArray = JSONArray(failedJson)
+                prefs.edit { remove(KEY_FAILED_REQUESTS) }
+
                 val startFixTime = System.currentTimeMillis()
                 val freshLocation = getFreshLocation()
                 val calculatedFixTime =
                     if (freshLocation?.provider == LocationManager.GPS_PROVIDER) System.currentTimeMillis() - startFixTime else null
 
                 val jsonRequest = JSONArray().apply {
+                    for (i in 0 until failedArray.length()) {
+                        put(failedArray.getJSONObject(i))
+                    }
                     put(JSONObject().apply {
-                        put("date", getCurrentTimeAsISO8601() ?: JSONObject.NULL)
+                        put("date", getCurrentTimeAsISO8601())
                         put("location", JSONObject().apply {
                             put("latitude", freshLocation?.latitude ?: JSONObject.NULL)
                             put("longitude", freshLocation?.longitude ?: JSONObject.NULL)
@@ -105,16 +116,21 @@ class ForegroundService : Service() {
                             put("accuracy", freshLocation?.accuracy ?: JSONObject.NULL)
                             put("altitude", freshLocation?.altitude ?: JSONObject.NULL)
                             put("provider", freshLocation?.provider ?: JSONObject.NULL)
-                            put("timeToFix", if (calculatedFixTime == null) JSONObject.NULL else calculatedFixTime / 1000.0)
+                            put(
+                                "timeToFix",
+                                if (calculatedFixTime == null) JSONObject.NULL else calculatedFixTime / 1000.0
+                            )
                             put("bearing", freshLocation?.bearing ?: JSONObject.NULL)
                         })
                         put("battery", JSONObject().apply {
                             put("voltage", getBatteryVoltage() ?: JSONObject.NULL)
                             put("current", getBatteryCurrent() ?: JSONObject.NULL)
-                            put("temperature",
+                            put(
+                                "temperature",
                                 getBatteryTemperature().takeIf { it >= 0f } ?: JSONObject.NULL
                             )
-                            put("level",
+                            put(
+                                "level",
                                 getBatteryPercentage().takeIf { it >= 0 } ?: JSONObject.NULL
                             )
                             put("charging", isCharging() ?: JSONObject.NULL)
@@ -140,6 +156,12 @@ class ForegroundService : Service() {
                     endpoint,
                     jsonRequest,
                     { response ->
+                        if (failedArray.length() > 0) {
+                            Log.d(
+                                "ForegroundService",
+                                "Successfully sent ${failedArray.length()} failed requests"
+                            )
+                        }
                     },
                     { error ->
                         Log.e(
@@ -149,6 +171,18 @@ class ForegroundService : Service() {
                         error.networkResponse?.data?.let {
                             Log.e("ForegroundService", "Response body: ${String(it)}")
                         }
+
+                        // persist up to MAX_FAILED_REQUESTS failed entries
+                        val toStore = if (jsonRequest.length() > MAX_FAILED_REQUESTS) {
+                            JSONArray().apply {
+                                for (i in jsonRequest.length() - MAX_FAILED_REQUESTS until jsonRequest.length()) {
+                                    put(jsonRequest.get(i))
+                                }
+                            }
+                        } else jsonRequest
+                        Log.e("ForegroundService", "Saving ${toStore.length()} failed requests")
+                        prefs.edit { putString(KEY_FAILED_REQUESTS, toStore.toString()) }
+
                         showErrorNotification("Error code: ${error.networkResponse?.statusCode ?: "Unknown"}")
                     }
                 ) {
@@ -202,7 +236,8 @@ class ForegroundService : Service() {
     }
 
     private fun showErrorNotification(message: String) {
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notificationManager =
+            getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val errorNotification = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setContentTitle("HTTP Request Failed")
@@ -300,9 +335,11 @@ class ForegroundService : Service() {
         return when (status) {
             BatteryManager.BATTERY_STATUS_CHARGING,
             BatteryManager.BATTERY_STATUS_FULL -> true
+
             BatteryManager.BATTERY_STATUS_DISCHARGING,
             BatteryManager.BATTERY_STATUS_NOT_CHARGING,
             BatteryManager.BATTERY_STATUS_UNKNOWN -> false
+
             else -> null
         }
     }
@@ -330,6 +367,7 @@ class ForegroundService : Service() {
                     cont.resume(e.values[0])
                     sm.unregisterListener(this)
                 }
+
                 override fun onAccuracyChanged(s: Sensor?, a: Int) {}
             }
             sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL)
