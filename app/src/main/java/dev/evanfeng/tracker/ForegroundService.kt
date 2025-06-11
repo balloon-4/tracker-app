@@ -109,22 +109,26 @@ class ForegroundService : Service() {
                             put("bearing", freshLocation?.bearing ?: JSONObject.NULL)
                         })
                         put("battery", JSONObject().apply {
-                            put("voltage", JSONObject.NULL)
-                            put("current", JSONObject.NULL)
-                            put("temperature", getBatteryTemperature())
-                            put("level", getBatteryPercentage())
-                            put("charging", JSONObject.NULL)
+                            put("voltage", getBatteryVoltage() ?: JSONObject.NULL)
+                            put("current", getBatteryCurrent() ?: JSONObject.NULL)
+                            put("temperature",
+                                getBatteryTemperature().takeIf { it >= 0f } ?: JSONObject.NULL
+                            )
+                            put("level",
+                                getBatteryPercentage().takeIf { it >= 0 } ?: JSONObject.NULL
+                            )
+                            put("charging", isCharging() ?: JSONObject.NULL)
                         })
                         put("sensors", JSONObject().apply {
                             put("barometer", getPressure() ?: JSONObject.NULL)
-                            put("light", JSONObject.NULL)
-                            put("proximity", JSONObject.NULL)
+                            put("light", getLight() ?: JSONObject.NULL)
+                            put("proximity", getProximity() ?: JSONObject.NULL)
                         })
                         put("cellular", JSONObject().apply {
-                            put("networkType", JSONObject.NULL)
-                            put("signalStrength", JSONObject.NULL)
-                            put("signalPower", JSONObject.NULL)
-                            put("cellTower", JSONObject.NULL)
+                            put("networkType", getNetworkType() ?: JSONObject.NULL)
+                            put("signalStrength", getSignalStrength() ?: JSONObject.NULL)
+                            put("signalPower", getSignalPower() ?: JSONObject.NULL)
+                            put("cellTower", getCellTower() ?: JSONObject.NULL)
                         })
                     })
                 }
@@ -278,20 +282,59 @@ class ForegroundService : Service() {
         return if (level >= 0 && scale > 0) (level * 100 / scale) else -1
     }
 
+    private fun getBatteryVoltage(): Float? {
+        val intent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val mv = intent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1) ?: -1
+        return if (mv >= 0) mv / 1000f else null
+    }
+
+    private fun getBatteryCurrent(): Float? {
+        val batteryManager = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+        val currentNow = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
+        return if (currentNow != Int.MIN_VALUE) currentNow / 1000f else null
+    }
+
+    private fun isCharging(): Boolean? {
+        val intent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+        return when (status) {
+            BatteryManager.BATTERY_STATUS_CHARGING,
+            BatteryManager.BATTERY_STATUS_FULL -> true
+            BatteryManager.BATTERY_STATUS_DISCHARGING,
+            BatteryManager.BATTERY_STATUS_NOT_CHARGING,
+            BatteryManager.BATTERY_STATUS_UNKNOWN -> false
+            else -> null
+        }
+    }
+
     private fun getBatteryTemperature(): Float {
         val batteryIntent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         val temp = batteryIntent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) ?: -1
         return if (temp != -1) temp / 10.0f else -1f
     }
 
-    private fun getCurrentTimeAsISO8601(): String {
-        val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ", Locale.getDefault())
-        dateFormat.timeZone = TimeZone.getDefault()
-        val formattedDate = dateFormat.format(Date())
-        return formattedDate.substring(0, formattedDate.length - 2) + ":" + formattedDate.substring(
-            formattedDate.length - 2
-        )
-    }
+    private suspend fun getLight(): Float? =
+        readSingleSensor(Sensor.TYPE_LIGHT)
+
+    private suspend fun getProximity(): Float? =
+        readSingleSensor(Sensor.TYPE_PROXIMITY)
+
+    private suspend fun readSingleSensor(type: Int): Float? =
+        suspendCancellableCoroutine { cont ->
+            val sm = getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+            val sensor = sm?.getDefaultSensor(type) ?: run {
+                cont.resume(null); return@suspendCancellableCoroutine
+            }
+            val listener = object : SensorEventListener {
+                override fun onSensorChanged(e: SensorEvent) {
+                    cont.resume(e.values[0])
+                    sm.unregisterListener(this)
+                }
+                override fun onAccuracyChanged(s: Sensor?, a: Int) {}
+            }
+            sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+            cont.invokeOnCancellation { sm.unregisterListener(listener) }
+        }
 
     private suspend fun getPressure(): Float? {
         return suspendCancellableCoroutine { cont ->
@@ -318,5 +361,30 @@ class ForegroundService : Service() {
                 sensorManager.unregisterListener(listener)
             }
         }
+    }
+
+    private fun getNetworkType(): String? {
+        return null
+    }
+
+    private fun getSignalStrength(): Int? {
+        return null
+    }
+
+    private fun getSignalPower(): Int? {
+        return null
+    }
+
+    private fun getCellTower(): String? {
+        return null
+    }
+
+    private fun getCurrentTimeAsISO8601(): String {
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ", Locale.getDefault())
+        dateFormat.timeZone = TimeZone.getDefault()
+        val formattedDate = dateFormat.format(Date())
+        return formattedDate.substring(0, formattedDate.length - 2) + ":" + formattedDate.substring(
+            formattedDate.length - 2
+        )
     }
 }
