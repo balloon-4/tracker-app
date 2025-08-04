@@ -8,7 +8,17 @@ import kotlinx.coroutines.flow.first
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        if (intent?.action == Intent.ACTION_BOOT_COMPLETED) {
+        val startServiceActions = mutableSetOf(
+            Intent.ACTION_BOOT_COMPLETED,
+            Intent.ACTION_MY_PACKAGE_REPLACED
+        )
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            startServiceActions.add(Intent.ACTION_LOCKED_BOOT_COMPLETED)
+            startServiceActions.add(Intent.ACTION_USER_UNLOCKED)
+        }
+
+        if (intent?.action in startServiceActions) {
             val preferencesManager = PreferencesManager(context.dataStore)
             val wasRunning = runBlocking {
                 preferencesManager.getPreferenceFlow(
