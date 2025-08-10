@@ -373,7 +373,7 @@ fun SettingItemInt(title: String, key: Preferences.Key<Int>, default: Int) {
                     showDialog.value = false
                     val newValue = try {
                         temp.value.toInt()
-                    } catch (e: Exception) {
+                    } catch (_: Exception) {
                         default
                     }
                     textState.value = newValue.toString()
