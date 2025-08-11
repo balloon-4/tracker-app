@@ -20,6 +20,7 @@ import androidx.lifecycle.lifecycleScope
 import dev.evanfeng.tracker.ui.theme.TrackerTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import io.sentry.Sentry
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 

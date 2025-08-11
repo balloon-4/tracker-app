@@ -16,7 +16,7 @@ interface TelemetrySender {
         cfAccessClientSecret: String,
         failedArray: JSONArray,
         prefs: SharedPreferences,
-        onError: (String) -> Unit,
+        onError: (Exception, String) -> Unit,
         onSuccess: () -> Unit
     )
 }
@@ -29,7 +29,7 @@ class HttpTelemetrySender(private val context: Context) : TelemetrySender {
         cfAccessClientSecret: String,
         failedArray: JSONArray,
         prefs: SharedPreferences,
-        onError: (String) -> Unit,
+        onError: (Exception, String) -> Unit,
         onSuccess: () -> Unit
     ) {
         val queue = Volley.newRequestQueue(context)
@@ -39,14 +39,14 @@ class HttpTelemetrySender(private val context: Context) : TelemetrySender {
             jsonRequest,
             { response ->
                 if (failedArray.length() > 0) {
-                    Log.d("ForegroundService", "Successfully sent ${failedArray.length()} failed requests")
+                    Log.d("HttpTelemetrySender", "Successfully sent ${failedArray.length()} failed requests")
                 }
                 onSuccess()
             },
             { error ->
-                Log.e("ForegroundService", "Error sending request: $error ${error.networkResponse?.statusCode}")
+                Log.e("HttpTelemetrySender", "Error sending request: $error ${error.networkResponse?.statusCode}")
                 error.networkResponse?.data?.let {
-                    Log.e("ForegroundService", "Response body: ${String(it)}")
+                    Log.e("HttpTelemetrySender", "Response body: ${String(it)}")
                 }
                 val toStore = if (jsonRequest.length() > ForegroundService.MAX_FAILED_REQUESTS) {
                     JSONArray().apply {
@@ -55,9 +55,9 @@ class HttpTelemetrySender(private val context: Context) : TelemetrySender {
                         }
                     }
                 } else jsonRequest
-                Log.e("ForegroundService", "Saving ${toStore.length()} failed requests")
+                Log.e("HttpTelemetrySender", "Saving ${toStore.length()} failed requests")
                 prefs.edit { putString(ForegroundService.KEY_FAILED_REQUESTS, toStore.toString()) }
-                onError("Error code: ${error.networkResponse?.statusCode ?: "Unknown"}")
+                onError(error, "Error code: ${error.networkResponse?.statusCode ?: "Unknown"}")
             }
         ) {
             override fun parseNetworkResponse(response: com.android.volley.NetworkResponse): com.android.volley.Response<JSONArray> {

@@ -18,6 +18,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.json.JSONArray
+import io.sentry.Sentry
 
 @Suppress("OVERRIDE_DEPRECATION")
 class ForegroundService : Service() {
@@ -72,7 +73,7 @@ class ForegroundService : Service() {
                     prefsData.cfAccessClientSecret,
                     failedArray,
                     prefs,
-                    onError = { showErrorNotification(it) },
+                    onError = ::handleError,
                     onSuccess = {}
                 )
 
@@ -129,6 +130,11 @@ class ForegroundService : Service() {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
         notificationManager.notify(ERROR_NOTIFICATION_ID, errorNotification)
+    }
+
+    private fun handleError(error: Exception, msg: String) {
+        showErrorNotification(msg)
+        Sentry.captureException(error)
     }
 
     override fun onDestroy() {
