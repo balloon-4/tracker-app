@@ -82,15 +82,15 @@ class MainActivity : ComponentActivity() {
 
     fun checkPermissionsAndThen(action: () -> Unit) {
         pendingAction = action
-        val permissionsToRequest = mutableListOf(
+        val permissionsToRequest = mutableSetOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            permissionsToRequest += Manifest.permission.ACCESS_BACKGROUND_LOCATION
+            permissionsToRequest.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissionsToRequest += Manifest.permission.POST_NOTIFICATIONS
+            permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
         }
         permissionLauncher.launch(permissionsToRequest.toTypedArray())
     }
