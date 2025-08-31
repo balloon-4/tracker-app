@@ -65,7 +65,7 @@ class HttpTelemetrySender(private val context: Context) : TelemetrySender {
                     val responseString = String(response.data)
                     val jsonArray = JSONArray(responseString)
                     com.android.volley.Response.success(jsonArray, null)
-                } catch (e: org.json.JSONException) {
+                } catch (_: org.json.JSONException) {
                     com.android.volley.Response.success(JSONArray(), null)
                 }
             }

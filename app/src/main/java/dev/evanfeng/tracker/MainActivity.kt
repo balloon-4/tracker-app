@@ -20,7 +20,6 @@ import androidx.lifecycle.lifecycleScope
 import dev.evanfeng.tracker.ui.theme.TrackerTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import io.sentry.Sentry
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
@@ -99,7 +98,6 @@ class MainActivity : ComponentActivity() {
     fun handleStartServiceButton() {
         checkPermissionsAndThen {
             val intent = Intent(this, ForegroundService::class.java)
-            ForegroundService.preferencesManager = preferencesManager
             startCompatibleForegroundService(intent)
             lifecycleScope.launch(Dispatchers.IO) {
                 preferencesManager.savePreference(PreferencesManager.Keys.IS_SERVICE_RUNNING, true)

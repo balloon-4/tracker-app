@@ -27,7 +27,6 @@ class BootReceiver : BroadcastReceiver() {
             }
             if (wasRunning) {
                 val serviceIntent = Intent(context, ForegroundService::class.java)
-                ForegroundService.preferencesManager = preferencesManager
                 context.startCompatibleForegroundService(serviceIntent)
             }
         }

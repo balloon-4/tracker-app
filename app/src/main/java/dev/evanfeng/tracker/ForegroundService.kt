@@ -4,7 +4,6 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
@@ -27,7 +26,6 @@ class ForegroundService : Service() {
     private var serviceJob: Job? = null
 
     companion object {
-        var preferencesManager: PreferencesManager? = null
         const val NOTIFICATION_ID = 1
         const val ERROR_NOTIFICATION_ID = NOTIFICATION_ID + 1
         const val MAX_FAILED_REQUESTS = 1000
@@ -38,9 +36,12 @@ class ForegroundService : Service() {
     private var telemetrySender: TelemetrySender? = null
     private var telemetryDataProvider: TelemetryDataProvider? = null
 
+    private var preferencesManager: PreferencesManager? = null
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        preferencesManager = preferencesManager ?: PreferencesManager(this.dataStore)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -55,7 +56,7 @@ class ForegroundService : Service() {
         serviceJob = CoroutineScope(Dispatchers.Default).launch {
             while (true) {
                 val prefsData = loadPreferences()
-                val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
                 val failedArray = getFailedRequests(prefs)
                 prefs.edit { remove(KEY_FAILED_REQUESTS) }
                 val startFixTime = System.currentTimeMillis()
@@ -122,7 +123,7 @@ class ForegroundService : Service() {
 
     private fun showErrorNotification(message: String) {
         val notificationManager =
-            getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         val errorNotification = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setContentTitle("HTTP Request Failed")
