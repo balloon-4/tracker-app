@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package Api;
+
+option java_package = "dev.evanfeng.tracker";
+option java_multiple_files = true;
+
+service Tracker {
+  rpc addTelemetry(TelemetryRequest) returns (TelemetryResponse) {}
+}
+
+message TelemetryRequest {
+  string deviceId = 1;
+  repeated Telemetry telemetries = 2;
+}
+
+message Telemetry {
+  string date = 1;
+  Location location = 2;
+  Battery battery = 3;
+  Sensors sensors = 4;
+  Cellular cellular = 5;
+}
+
+message Location {
+  double latitude = 1;
+  double longitude = 2;
+  double speed = 3;
+  double accuracy = 4;
+  double altitude = 5;
+  string provider = 6;
+  double timeToFix = 7;
+  double bearing = 8;
+}
+
+message Battery {
+  double voltage = 1;
+  double current = 2;
+  double temperature = 3;
+  int32 level = 4;
+  bool charging = 5;
+}
+
+message Sensors {
+  double barometer = 1;
+  double light = 2;
+  double proximity = 3;
+}
+
+message Cellular {
+  string networkType = 1;
+  double signalStrength = 2;
+  double signalPower = 3;
+  string cellTower = 4;
+}
+
+message TelemetryResponse {
+}
