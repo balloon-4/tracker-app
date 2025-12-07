@@ -46,6 +46,13 @@ class TelemetryDataProvider(private val context: Context) {
     }
 
     private suspend fun requestLocationByProvider(locationManager: LocationManager, provider: String): Location? {
+        val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        val providers = lm.allProviders
+        val isProviderExists = providers.contains(provider)
+        if (!isProviderExists) {
+            return null
+        }
+
         return withTimeoutOrNull(LOCATION_TIMEOUT_MS) {
             suspendCancellableCoroutine { cont ->
                 var lastAccuracy: Float? = null
