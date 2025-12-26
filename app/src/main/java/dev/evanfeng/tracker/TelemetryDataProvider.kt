@@ -14,6 +14,7 @@ import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Looper
+import android.util.Log
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
@@ -46,13 +47,6 @@ class TelemetryDataProvider(private val context: Context) {
     }
 
     private suspend fun requestLocationByProvider(locationManager: LocationManager, provider: String): Location? {
-        val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-        val providers = lm.allProviders
-        val isProviderExists = providers.contains(provider)
-        if (!isProviderExists) {
-            return null
-        }
-
         return withTimeoutOrNull(LOCATION_TIMEOUT_MS) {
             suspendCancellableCoroutine { cont ->
                 var lastAccuracy: Float? = null
@@ -79,6 +73,9 @@ class TelemetryDataProvider(private val context: Context) {
                         listener,
                         Looper.getMainLooper()
                     )
+                } catch (e: IllegalArgumentException) {
+                    Log.w("TelemetryDataProvider", "Provider '$provider' does not exist on this device.")
+                    cont.resume(null)
                 } catch (_: SecurityException) {
                     cont.resume(null)
                 }
