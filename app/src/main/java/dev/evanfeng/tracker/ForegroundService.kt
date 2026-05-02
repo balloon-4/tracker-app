@@ -13,6 +13,8 @@ import androidx.core.content.edit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -23,6 +25,7 @@ import io.sentry.Sentry
 class ForegroundService : Service() {
 
     private val channelId = "ForegroundServiceChannel"
+    private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var serviceJob: Job? = null
 
     companion object {
@@ -42,6 +45,8 @@ class ForegroundService : Service() {
         super.onCreate()
         createNotificationChannel()
         preferencesManager = preferencesManager ?: PreferencesManager(this.dataStore)
+        telemetrySender = HttpTelemetrySender(this)
+        telemetryDataProvider = TelemetryDataProvider(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -51,9 +56,8 @@ class ForegroundService : Service() {
 
         startForeground(NOTIFICATION_ID, notification)
 
-        telemetrySender = HttpTelemetrySender(this)
-        telemetryDataProvider = TelemetryDataProvider(this)
-        serviceJob = CoroutineScope(Dispatchers.Default).launch {
+        serviceJob?.cancel()
+        serviceJob = serviceScope.launch {
             while (true) {
                 val prefsData = loadPreferences()
                 val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
@@ -140,7 +144,7 @@ class ForegroundService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        serviceJob?.cancel()
+        serviceScope.cancel()
     }
 
     override fun onBind(intent: Intent?): IBinder? {

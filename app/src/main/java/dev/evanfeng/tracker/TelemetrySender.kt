@@ -8,6 +8,9 @@ import com.android.volley.toolbox.JsonArrayRequest
 import com.android.volley.toolbox.Volley
 import org.json.JSONArray
 
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+
 interface TelemetrySender {
     suspend fun sendTelemetry(
         endpoint: String,
@@ -21,7 +24,9 @@ interface TelemetrySender {
     )
 }
 
-class HttpTelemetrySender(private val context: Context) : TelemetrySender {
+class HttpTelemetrySender(context: Context) : TelemetrySender {
+    private val queue = Volley.newRequestQueue(context.applicationContext)
+
     override suspend fun sendTelemetry(
         endpoint: String,
         jsonRequest: JSONArray,
@@ -31,8 +36,7 @@ class HttpTelemetrySender(private val context: Context) : TelemetrySender {
         prefs: SharedPreferences,
         onError: (Exception, String) -> Unit,
         onSuccess: () -> Unit
-    ) {
-        val queue = Volley.newRequestQueue(context)
+    ) = suspendCancellableCoroutine<Unit> { cont ->
         val request = object : JsonArrayRequest(
             Method.POST,
             endpoint,
@@ -42,6 +46,7 @@ class HttpTelemetrySender(private val context: Context) : TelemetrySender {
                     Log.d("HttpTelemetrySender", "Successfully sent ${failedArray.length()} failed requests")
                 }
                 onSuccess()
+                if (cont.isActive) cont.resume(Unit)
             },
             { error ->
                 Log.e("HttpTelemetrySender", "Error sending request: $error ${error.networkResponse?.statusCode}")
@@ -58,6 +63,7 @@ class HttpTelemetrySender(private val context: Context) : TelemetrySender {
                 Log.e("HttpTelemetrySender", "Saving ${toStore.length()} failed requests")
                 prefs.edit { putString(ForegroundService.KEY_FAILED_REQUESTS, toStore.toString()) }
                 onError(error, "Error code: ${error.networkResponse?.statusCode ?: "Unknown"}")
+                if (cont.isActive) cont.resume(Unit) // We resumed with Unit because error is handled by onError callback
             }
         ) {
             override fun parseNetworkResponse(response: com.android.volley.NetworkResponse): com.android.volley.Response<JSONArray> {
@@ -78,6 +84,7 @@ class HttpTelemetrySender(private val context: Context) : TelemetrySender {
             }
         }
         queue.add(request)
+        cont.invokeOnCancellation { request.cancel() }
     }
 }
 

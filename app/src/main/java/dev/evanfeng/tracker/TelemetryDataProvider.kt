@@ -31,6 +31,7 @@ class TelemetryDataProvider(private val context: Context) {
         const val LOCATION_MIN_DISTANCE = 0f
         const val MIN_ACCURACY_DIFFERENCE = 5f
         const val LOCATION_TIMEOUT_MS = 10000L
+        const val SENSOR_TIMEOUT_MS = 5000L
     }
 
     suspend fun getLocation(): Location? {
@@ -126,18 +127,20 @@ class TelemetryDataProvider(private val context: Context) {
     suspend fun getProximity(): Float? = readSingleSensor(Sensor.TYPE_PROXIMITY)
     suspend fun getPressure(): Float? = readSingleSensor(Sensor.TYPE_PRESSURE)
 
-    private suspend fun readSingleSensor(type: Int): Float? = suspendCancellableCoroutine { cont ->
-        val sm = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
-        val sensor = sm?.getDefaultSensor(type) ?: run { cont.resume(null); return@suspendCancellableCoroutine }
-        val listener = object : SensorEventListener {
-            override fun onSensorChanged(e: SensorEvent) {
-                cont.resume(e.values[0])
-                sm.unregisterListener(this)
+    private suspend fun readSingleSensor(type: Int): Float? = withTimeoutOrNull(SENSOR_TIMEOUT_MS) {
+        suspendCancellableCoroutine { cont ->
+            val sm = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+            val sensor = sm?.getDefaultSensor(type) ?: run { cont.resume(null); return@suspendCancellableCoroutine }
+            val listener = object : SensorEventListener {
+                override fun onSensorChanged(e: SensorEvent) {
+                    if (cont.isActive) cont.resume(e.values[0])
+                    sm.unregisterListener(this)
+                }
+                override fun onAccuracyChanged(s: Sensor?, a: Int) {}
             }
-            override fun onAccuracyChanged(s: Sensor?, a: Int) {}
+            sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+            cont.invokeOnCancellation { sm.unregisterListener(listener) }
         }
-        sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL)
-        cont.invokeOnCancellation { sm.unregisterListener(listener) }
     }
 
     fun getNetworkType(): String? = null
