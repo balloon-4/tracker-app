@@ -1,5 +1,5 @@
 [versions]
-agp = "8.12.2"
+agp = "8.13.2"
 datastorePreferencesCore = "1.1.4"
 grpcNettyShaded = "1.71.0"
 grpcKotlinStub = "1.4.1"
